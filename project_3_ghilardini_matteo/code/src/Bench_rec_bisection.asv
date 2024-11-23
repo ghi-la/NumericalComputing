@@ -1,0 +1,157 @@
+% Benchmark for recursively partitioning meshes, based on various
+% bisection approaches
+%
+% D.P & O.S for Numerical Computing at USI
+
+ASK_FOR_GRAPHS = false;
+
+% add necessary paths
+addpaths_GP;
+nlevels_a = 3;
+nlevels_b = 4;
+
+fprintf('       *********************************************\n')
+fprintf('       ***  Recursive graph bisection benchmark  ***\n');
+fprintf('       *********************************************\n')
+
+% load cases
+cases = {
+     'mesh1e1.mat',
+     'bodyy4.mat',
+     'de2010.mat',
+     'biplane-9.mat',
+     'L-9.mat',
+    };
+
+nc = length(cases);
+maxlen = 0;
+for c = 1:nc
+    if length(cases{c}) > maxlen
+        maxlen = length(cases{c});
+    end
+end
+
+for c = 1:nc
+    fprintf('.');
+    sparse_matrices(c) = load(cases{c});
+end
+
+
+fprintf('\n\n Report Cases         Nodes     Edges\n');
+fprintf(repmat('-', 1, 40));
+fprintf('\n');
+for c = 1:nc
+    spacers  = repmat('.', 1, maxlen+3-length(cases{c}));
+    [params] = Initialize_case(sparse_matrices(c));
+    fprintf('%s %s %10d %10d\n', cases{c}, spacers,params.numberOfVertices,params.numberOfEdges);
+end
+
+%% Create results table
+fprintf('\n%7s %16s %20s %16s %16s\n','Bisection','Spectral','Metis 5.0.2','Coordinate','Inertial');
+fprintf('%10s %10d %6d %10d %6d %10d %6d %10d %6d\n','Partitions',8,16,8,16,8,16,8,16);
+fprintf(repmat('-', 1, 100));
+fprintf('\n');
+
+for c = 1:nc
+    spacers = repmat('.', 1, maxlen+3-length(cases{c}));
+    fprintf('%s %s\n', cases{c}, spacers);
+    sparse_matrix = load(cases{c});
+    
+
+    % Recursively bisect the loaded graphs in 8 and 16 subgraphs.
+    % Steps
+    % 1. Initialize the problem
+    [params] = Initialize_case(sparse_matrices(c));
+    W      = params.Adj;
+    coords = params.coords;    
+    % 2. Recursive routines
+    % i. Spectral    
+    [spectral_map_8, spectral_sepij_8, ~] = rec_bisection(@bisection_spectral, 3, W, coords, 0);
+    [spectral_map_16, spectral_sepij_16, ~] = rec_bisection(@bisection_spectral, 4, W, coords, 0);
+    
+    % ii. Metis
+    [metis_map_8, metis_sepij_8, ~] = rec_bisection(@bisection_metis, 3, W, coords, 0);
+    [metis_map_16, metis_sepij_16, ~] = rec_bisection(@bisection_metis, 4, W, coords, 0);
+    
+    % iii. Coordinate
+    [coord_map_8, coord_sepij_8, ~] = rec_bisection(@bisection_coordinate, 3, W, coords, 0);
+    [coord_map_16, coord_sepij_16, ~] = rec_bisection(@bisection_coordinate, 4, W, coords, 0);
+    
+    % iv. Inertial
+    [inertial_map_8, inertial_sepij_8, ~] = rec_bisection(@bisection_inertial, 3, W, coords, 0);
+    [inertial_map_16, inertial_sepij_16, ~] = rec_bisection(@bisection_inertial, 4, W, coords, 0);
+    
+    % 3. Calculate number of cut edges
+    num_cut_edges = @(sepij) size(sepij, 1); % helper function to count edges
+
+    % 4. Print results for each method
+    % Display header
+    fprintf('\n%-15s %10s %10s %10s %10s %10s %10s %10s %10s\n', ...
+            'Case', 'Spectral 8', 'Spectral 16', 'Metis 8', 'Metis 16', ...
+            'Coordinate 8', 'Coordinate 16', 'Inertial 8', 'Inertial 16');
+    fprintf(repmat('-', 1, 130)); % Line separator
+    fprintf('\n');
+    
+    fprintf('%-15s %10d %10d %10d %10d %10d %10d %10d %10d\n', ...
+        cases{c}, ...
+        num_cut_edges(spectral_sepij_8), num_cut_edges(spectral_sepij_16), ...
+        num_cut_edges(metis_sepij_8), num_cut_edges(metis_sepij_16), ...
+        num_cut_edges(coord_sepij_8), num_cut_edges(coord_sepij_16), ...
+        num_cut_edges(inertial_sepij_8), num_cut_edges(inertial_sepij_16));
+
+    % Always display de2010.mat => c==3. 
+    % To display also the other ones change the
+  value of ASK_FOR_GRAPHS to true and remove the condition c==3
+    if(ASK_FOR_GRAPHS || c==3)
+        if (c~=3)
+            % Prompt the user for input
+            user_response = input('Do you want to show the graphs? [Y, N]: ', 's');
+            close all;
+        end;
+        
+        % Check response (case-insensitive)
+        if (strcmpi(user_response, 'Y') || c==3)
+            disp('Rendering graphs...')
+            case_name = cases{c}; % Store the case name for easy use
+    
+            % Original Graph
+            figure;
+            gplotg(W, coords);
+            title(['Original Graph - ', case_name]);
+            
+            figure;
+            gplotmap(W, coords, metis_map_8);
+            title(['Metis 8 Partitioning - ', case_name]);
+    
+            figure;
+            gplotmap(W, coords, metis_map_16);
+            title(['Metis 16 Partitioning - ', case_name]);
+    
+            figure;
+            gplotmap(W, coords, spectral_map_8);
+            title(['Spectral 8 Partitioning - ', case_name]);
+    
+            figure;
+            gplotmap(W, coords, spectral_map_16);
+            title(['Spectral 16 Partitioning - ', case_name]);
+    
+            figure;
+            gplotmap(W, coords, coord_map_8);
+            title(['Coordinate 8 Partitioning - ', case_name]);
+    
+            figure;
+            gplotmap(W, coords, coord_map_16);
+            title(['Coordinate 16 Partitioning - ', case_name]);
+    
+            figure;
+            gplotmap(W, coords, inertial_map_8);
+            title(['Inertial 8 Partitioning - ', case_name]);
+    
+            figure;
+            gplotmap(W, coords, inertial_map_16);
+            title(['Inertial 16 Partitioning - ', case_name]);
+        else
+            fprintf('Graphs will of %s not be displayed for ', cases{c});
+        end;
+    end;
+end

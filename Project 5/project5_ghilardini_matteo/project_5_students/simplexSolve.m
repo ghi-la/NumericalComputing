@@ -15,9 +15,9 @@ tol = max(size(r_D)); % the optimality condition is satisfied if all reduced cos
 
 % TODO: Check the optimality condition, in order to skip the loop if the solution is already optimal)
 if(strcmp(type,'max'))
-    optCheck = sum(r_D <= 0); % All reduced costs must be ≤ 0 for maximization
+    optCheck = sum(r_D < 0); % All reduced costs must be ≤ 0 for maximization
 elseif(strcmp(type,'min'))
-    optCheck = sum(r_D >= 0); % All reduced costs must be ≥ 0 for minimization
+    optCheck = sum(r_D > 0); % All reduced costs must be ≥ 0 for minimization
 else
     error('Incorrect type specified. Choose either a maximisation (max) or minimisation (min) problem.')
 end
@@ -26,9 +26,9 @@ while(optCheck~=tol)
 
     % TODO: Find the index of the entering variable
     if(strcmp(type,'max'))
-        idxIN = max(r_D); % Variable with the largest reduced cost enters for maximization
+        [~, idxIN] = max(r_D); % Variable with the largest reduced cost enters for maximization
     elseif(strcmp(type,'min'))
-        idxIN = min(r_D); % Variable with the smallest reduced cost enters for minimization
+        [~, idxIN] = min(r_D); % Variable with the smallest reduced cost enters for minimization
     else
         error('Incorrect type specified. Choose either a maximisation (max) or minimisation (min) problem.')
     end
@@ -42,8 +42,7 @@ while(optCheck~=tol)
     ratio = Bih ./ (BiD(:, idxIN) + eps);
     
     % TODO: Find the smallest positive ratio
-    idxOUT = min(ratio);
-    find(ratio == min(ratio(ratio >= 0)));
+    idxOUT = find(ratio == min(ratio(ratio >= 0)));
     
     out = B(:,idxOUT);
     c_out = c_B(1,idxOUT);
@@ -66,13 +65,16 @@ while(optCheck~=tol)
 
     % TODO: Check the optimality condition 
     if(strcmp(type,'max'))
-        optCheck = sum(r_D <= 0); % All reduced costs must be ≤ 0 for maximization
+        optCheck = sum(r_D < 0); % All reduced costs must be ≤ 0 for maximization
     elseif(strcmp(type,'min'))
-        optCheck = sum(r_D >= 0); % All reduced costs must be ≥ 0 for minimization
+        optCheck = sum(r_D > 0); % All reduced costs must be ≥ 0 for minimization
     else
         error('Incorrect type specified. Choose either a maximisation (max) or minimisation (min) problem.')
     end
     
+    % Related with exercise3.m
+    fprintf("Current iter: %d \tMax iter: %d\n", nIter, itMax);
+
     % Detect inefficient looping if nIter > total number of basic solutions
     nIter = nIter + 1;
     if(nIter>itMax)
@@ -80,7 +82,7 @@ while(optCheck~=tol)
     end
 
     % TODO: Compute the new x_B
-    x_B = Bih
+    x_B = Bih - BiD * x_D;
 
 end
 
